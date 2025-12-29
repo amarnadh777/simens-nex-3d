@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import Sidebar from "@/components/Sidebar";
 import { FocusProvider } from "@/context/FocusContext";
+import { SelectionProvider } from "@/context/SelectionContext";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -8,30 +9,33 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white overflow-x-hidden`}
-      >
-        <FocusProvider>
-          <div className="flex h-screen w-full max-w-full overflow-hidden relative">
+    <html lang="en" className="dark">
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-black text-white overflow-hidden`}>
+        <SelectionProvider>
+          <FocusProvider>
+            {/* The wrapper is a flex container that fills the screen */}
+            <div className="flex h-screen w-screen overflow-hidden">
 
-            {/* LEFT SIDEBAR */}
-            <Sidebar />
+              {/* SIDEBAR: Stays on the left */}
+              <Sidebar />
 
-            {/* MAIN CONTENT */}
-            <main className="flex-1 relative overflow-y-auto overflow-x-hidden bg-[#050505] min-w-0">
-              {children}
-            </main>
+              {/* MAIN CONTENT: Fills the remaining space */}
+              <main className="flex-1 relative bg-[#050505] min-w-0 overflow-hidden">
+                {children}
 
-            {/* RIGHT LOGO */}
-            <img
-              src="/logo.png"
-              alt="Logo"
-              className="fixed top-4 right-4 size-40 opacity-80 hover:opacity-100 transition z-50"
-            />
+                {/* LOGO: Fixed relative to the MAIN area, not the whole window */}
+                <div className="absolute top-6 right-6 z-50 pointer-events-none">
+                  <img
+                    src="/logo.png"
+                    alt="Logo"
+                    className="w-32 opacity-60 hover:opacity-100 transition-opacity pointer-events-auto"
+                  />
+                </div>
+              </main>
 
-          </div>
-        </FocusProvider>
+            </div>
+          </FocusProvider>
+        </SelectionProvider>
       </body>
     </html>
   );

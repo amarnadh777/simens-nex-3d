@@ -1,18 +1,19 @@
-'use client';
+"use client";
 
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Environment } from '@react-three/drei';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
 import Model from './Model';
 import Loader from './Loader';
 import WalkControls from './WalkControls';
+import { useSelection } from '@/context/SelectionContext';
 
 export default function Scene({ controlsRef, highlightColor,onObjectSelect   }) {
   const [mode, setMode] = useState('orbit');
   const [showInstructions, setShowInstructions] = useState(false);
-  const [selectedObject, setSelectedObject] = useState(null);
+  const { selectedObject, setSelectedObject } = useSelection();
   const cameraRef = useRef(null);
 
   // Handle mode switching

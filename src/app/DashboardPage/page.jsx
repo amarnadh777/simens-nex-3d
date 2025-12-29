@@ -1,408 +1,250 @@
 'use client';
-import React, { useState } from 'react';
-import { 
-  LineChart, Line, AreaChart, Area, XAxis, YAxis, 
-  ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar, Tooltip 
+import React from 'react';
+import dynamic from 'next/dynamic';
+import {
+  PieChart, Pie, Cell, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip
 } from 'recharts';
 import { 
-  Server, Activity, Cpu, Zap, 
-  ShieldCheck, LayoutGrid, ArrowUpRight, TrendingUp 
+  Activity, Zap, Droplets, Terminal, Server, 
+  ArrowLeft, ShieldAlert, Cpu 
 } from 'lucide-react';
-import dynamic from 'next/dynamic';
-import { useFocus } from '@/context/FocusContext';
 
+import { useSelection } from '@/context/SelectionContext';
+// IMPORT YOUR MAP
+import { dashboardMap } from '@/components/dashboard/dashboardMap';
 
-const ThreeCanvas = dynamic(() => import('../../components/ThreeCanvas'), { ssr: false });
+const ThreeCanvas = dynamic(
+  () => import('../../components/ThreeCanvas'),
+  { ssr: false }
+);
 
-// --- MOCK DATA ---
-const performanceData = [
-  { time: '01', val1: 4000, val2: 2400 },
-  { time: '04', val1: 3000, val2: 1398 },
-  { time: '08', val1: 2000, val2: 9800 },
-  { time: '12', val1: 2780, val2: 3908 },
-  { time: '16', val1: 1890, val2: 4800 },
-  { time: '20', val1: 2390, val2: 3800 },
-  { time: '24', val1: 3490, val2: 4300 },
+/* -------------------------------------------------------------------------- */
+/* 1. MOCK DATA                                */
+/* -------------------------------------------------------------------------- */
+const SEVERITY_DATA = [
+  { name: 'Critical', value: 24, color: '#000000' },
+  { name: 'High', value: 40, color: '#ef4444' },
+  { name: 'Medium', value: 62, color: '#92400e' },
+  { name: 'Low', value: 90, color: '#eab308' },
 ];
 
-const barData = [
-  { name: 'M', val: 40 }, { name: 'T', val: 70 }, { name: 'W', val: 50 },
-  { name: 'T', val: 90 }, { name: 'F', val: 60 }, { name: 'S', val: 30 },
-];
-const solarProductionData = [
-  { hour: '00', output: 0 },
-  { hour: '04', output: 5 },
-  { hour: '08', output: 45 },
-  { hour: '12', output: 92 },
-  { hour: '16', hour: 60 },
-  { hour: '20', output: 10 },
-  { hour: '24', output: 0 },
+const SLA_DATA = [
+  { priority: 'Crit', '<1m': 15, '1-5m': 5, '>5m': 4 },
+  { priority: 'High', '<1m': 20, '1-5m': 15, '>5m': 5 },
+  { priority: 'Med', '<1m': 30, '1-5m': 20, '>5m': 10 },
 ];
 
-
-// --- STYLED COMPONENTS ---
-
-const PanelCard = ({ children, className = "", onClick }) => (
-  <div
-    onClick={onClick}   // ✅ FORWARD CLICK
-    className={`
-      bg-[#0a0a0a]/80 backdrop-blur-xl
-      border border-white/5 rounded-[2rem]
-      shadow-2xl overflow-hidden
-      ${onClick ? 'cursor-pointer' : ''}
-      ${className}
-    `}
-  >
-    {children}
-  </div>
-);  
-
-const MiniStatCard = ({
-  title,
-  value,
-  trend,
-  icon: Icon,
-  colorClass,
-  focusConfig,        // ✅ new prop
-}) => {
-  const { setFocusConfig } = useFocus();
-
-  const handleClick = () => {
-    setFocusConfig(null);              // reset (important)
-    setTimeout(() => {
-      setFocusConfig(focusConfig);     // apply new focus
-    }, 50);
-  };
-
-  return (
-    <PanelCard
-      className="p-5 cursor-pointer hover:ring-2 hover:ring-cyan-400/40 transition"
-      onClick={handleClick}             // ✅ CLICK ENABLED
-    >
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-[10px] text-slate-500 uppercase tracking-widest">
-            {title}
-          </p>
-          <h2 className="text-2xl font-bold text-white">
-            {value}
-          </h2>
-          <p className={`text-[10px] font-bold ${colorClass}`}>
-            {trend}
-          </p>
-        </div>
-
-        <div className={`p-2 rounded-xl bg-white/5 border border-white/10 ${colorClass}`}>
-          <Icon size={18} />
-        </div>
-      </div>
-    </PanelCard>
-  );
+const OBJECT_INTELLIGENCE = {
+  'Shed_Dirty_Wood_Planks_0': {
+    type: 'Photovoltaic Array 03',
+    primaryMetric: '4.2 kW',
+    secondaryMetric: '94% Efficiency',
+    health: 98,
+    logs: ['Grid sync stable', 'Inverter temp nominal', 'Voltage balanced']
+  },
+  'Shed_Wood_Planks_0': {
+    type: 'Primary Data Hall',
+    primaryMetric: '1.2 MW',
+    secondaryMetric: 'Temp: 22.4°C',
+    health: 72,
+    logs: ['Cooling ramped to 80%', 'UPS on bypass', 'Humidity within specs']
+  }
 };
 
+/* -------------------------------------------------------------------------- */
+/* 2. UI COMPONENTS                                */
+/* -------------------------------------------------------------------------- */
 
-const GlowingBar = ({ label, value, color }) => (
-  <div className="space-y-2">
-    <div className="flex justify-between text-[10px] font-bold tracking-tighter uppercase">
-      <span className="text-slate-400">{label}</span>
-      <span className="text-white">{value}%</span>
-    </div>
-    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-      <div 
-        className="h-full transition-all duration-1000 shadow-[0_0_10px_rgba(59,130,246,0.5)]" 
-        style={{ width: `${value}%`, backgroundColor: color }}
-      />
-    </div>
+const GlassPanel = ({ children, title, className = '' }) => (
+  <div className={`bg-[#0a0a0a]/60 backdrop-blur-md border border-white/10 rounded-[1.5rem] p-5 shadow-2xl ${className}`}>
+    {title && (
+      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-4 flex justify-between items-center">
+        {title}
+        <div className="w-1 h-1 rounded-full bg-blue-500 animate-pulse" />
+      </h3>
+    )}
+    {children}
   </div>
 );
 
-export default function BeautifulDashboard() {
+const StatMiniCard = ({ label, val, icon: Icon, color }) => (
+  <div className="bg-white/5 p-3 rounded-xl border border-white/10 flex flex-col gap-1">
+    <Icon size={14} className={color} />
+    <span className="text-[9px] text-slate-500 uppercase font-bold">{label}</span>
+    <p className="text-lg font-bold text-white leading-none">{val}</p>
+  </div>
+);
 
-  const [highlightColor, setHighlightColor] = useState('#ff0000');
+/* -------------------------------------------------------------------------- */
+/* 3. MAIN DASHBOARD                              */
+/* -------------------------------------------------------------------------- */
 
-  const { setFocusConfig } = useFocus();
+export default function AlarmDashboard() {
+  const { selectedObject, setSelectedObject } = useSelection();
+
+  // 🚩 LOOKUP COMPONENT FROM MAP
+  const ComponentToRender = selectedObject ? dashboardMap[selectedObject.name] : null;
+
+  const componentData = selectedObject ? (OBJECT_INTELLIGENCE[selectedObject.name] || {
+    type: 'General Asset',
+    primaryMetric: 'Active',
+    secondaryMetric: 'Standard Mode',
+    health: 100,
+    logs: ['Telemetry heartbeat active', 'No specific alerts']
+  }) : null;
+
   return (
-    <div className="relative w-screen h-screen bg-[#050505] overflow-hidden font-sans text-slate-200">
-      {/* 3D BACKGROUND LAYER */}
-      <div className="absolute inset-0 z-0">
-        <ThreeCanvas highlightColor={highlightColor}  
-         onObjectSelect={
-          (data) => console.log(data,"datat form the prps")
-         }
-        
-        
-        />
-      </div>
-      {/* UI OVERLAY */}
-      <div className="relative z-10 h-full flex flex-row p-8 pointer-events-none">
-        
-        {/* LEFT COLUMN: FIXED SIDEBAR */}
-        <div className="w-80 flex flex-col gap-5 pointer-events-auto h-full">
-          
-          {/* LOGO CARD */}
-         
+    <div className="relative w-full h-full bg-[#050505] overflow-hidden text-slate-200 p-6 flex flex-col gap-4">
 
-          {/* STATS FROM IMAGE REF */}
-          {/* <MiniStatCard 
-            title="Core Intel" 
-            value="68%" 
-            trend="+2.3%" 
-            icon={Cpu} 
-            colorClass="text-blue-400"
+      {/* ================= TOP SECTION (3D + Overlay) ================= */}
+      <div className="flex-1 relative grid grid-cols-12 gap-4 min-h-0 pointer-events-none">
 
-             focusConfig={{
-    part: 'solar003',          // ✅ mesh name
-    offset: { x: 5, y: 2, z: 5 } // ✅ camera offset
-  }}
-          /> */}
-
-          <PanelCard className="p-6"      onClick={() => {
-      // clear then re-set so clicking the same target repeatedly works
-      setFocusConfig(null); 
-      setTimeout(() => setFocusConfig(
-
-         {
-    part: 'solar004',
-    offset: { x: 5, y: 2, z: 10 }
-  }
-      ), 50);
-    }}
-           
-       >
-            <h3 className="text-[10px] font-bold tracking-[0.2em] uppercase mb-6 text-slate-500">Resource Stack</h3>
-            <div className="space-y-6">
-              <GlowingBar label="Neural Load" value={87} color="#3b82f6" />
-              <GlowingBar label="Memory Bank" value={63} color="#8b5cf6" />
-              <GlowingBar label="Active Nodes" value={45} color="#06b6d4" />
-            </div>
-          </PanelCard>
-{/* FOCUS CONTROLS */}
-
-
-<div className="w-80 flex flex-col gap-5 pointer-events-auto h-full">
-  
-  {/* CORE INTEL STAT CARD (Already in your code) */}
-  <MiniStatCard 
-    title="Core Intel" 
-    value="68%" 
-    trend="+2.3%" 
-    icon={Cpu} 
-    colorClass="text-blue-400"
-    focusConfig={{
-      part: 'solar003',
-      offset: { x: 5, y: 2, z: 5 }
-    }}
-  />
-
-  {/* RESOURCE STACK (Already in your code) */}
-  {/* <PanelCard className="p-6"   onClick={() => {
-      // clear then re-set so clicking the same target repeatedly works
-      setFocusConfig(null); 
-      setTimeout(() => setFocusConfig(
-
-         {
-    part: 'solar004',
-    offset: { x: 5, y: 2, z: 10 }
-  }
-      ), 50);
-    }}>
-     <h3 className="text-[10px] font-bold tracking-[0.2em] uppercase mb-6 text-slate-500">Resource Stack</h3>
-     <div className="space-y-6">
-       <GlowingBar label="Neural Load" value={87} color="#3b82f6" />
-       <GlowingBar label="Memory Bank" value={63} color="#8b5cf6" />
-       <GlowingBar label="Active Nodes" value={45} color="#06b6d4" />
-     </div>
-  </PanelCard> */}
-
-  {/* NEW: SOLAR TELEMETRY GRAPHS */}
-  <PanelCard className="flex-1 p-6 flex flex-col">
-    <div className="flex justify-between items-center mb-4">
-      <h3 className="text-[10px] font-bold tracking-[0.2em] uppercase text-slate-500">Solar Telemetry</h3>
-      <Zap size={14} className="text-amber-400 animate-pulse" />
-    </div>
-
-    {/* Small Area Chart for Real-time Output */}
-    <div className="h-32 w-full mb-6">
-       <p className="text-[9px] text-slate-500 mb-2 uppercase">Current Output (kW)</p>
-       <ResponsiveContainer width="100%" height="100%">
-         <AreaChart data={solarProductionData}>
-           <defs>
-             <linearGradient id="colorSolar" x1="0" y1="0" x2="0" y2="1">
-               <stop offset="5%" stopColor="#fbbf24" stopOpacity={0.3}/>
-               <stop offset="95%" stopColor="#fbbf24" stopOpacity={0}/>
-             </linearGradient>
-           </defs>
-           <Area 
-             type="stepAfter" 
-             dataKey="output" 
-             stroke="#fbbf24" 
-             strokeWidth={2} 
-             fill="url(#colorSolar)" 
-             dot={false}
-           />
-         </AreaChart>
-       </ResponsiveContainer>
-    </div>
-
-    {/* Efficiency Bar Graph */}
-    <div className="flex-1">
-      <p className="text-[9px] text-slate-500 mb-2 uppercase">Peak Performance</p>
-      <div className="space-y-3">
-        {[
-          { label: 'Array A', val: 94, color: '#fbbf24' },
-          { label: 'Array B', val: 82, color: '#f59e0b' },
-          { label: 'Array C', val: 76, color: '#d97706' }
-        ].map((item, i) => (
-          <div key={i} className="flex items-end gap-2">
-            <span className="text-[8px] text-slate-400 w-12">{item.label}</span>
-            <div className="flex-1 h-3 bg-white/5 rounded-sm overflow-hidden flex items-center">
-              <div 
-                className="h-full transition-all duration-1000" 
-                style={{ width: `${item.val}%`, backgroundColor: item.color }}
-              />
-            </div>
-            <span className="text-[8px] text-white w-6">{item.val}%</span>
+        {/* ✅ BACKGROUND: 3D MODEL */}
+        <div className="absolute inset-0 z-0 flex items-center justify-center opacity-90 pointer-events-auto">
+          <div className="w-full h-full max-w-[80%] max-h-[90%]">
+            <ThreeCanvas highlightColor={selectedObject ? "#fbbf24" : "#3b82f6"} />
           </div>
-        ))}
-      </div>
-    </div>
-
-    {/* Live Status Ticker */}
-    <div className="mt-4 pt-4 border-t border-white/5">
-      <div className="flex items-center gap-2">
-        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
-        <span className="text-[9px] font-mono text-emerald-500/80">GRID_FEED_ACTIVE: 4.2kWh</span>
-      </div>
-    </div>
-  </PanelCard>
-</div>
-
-
-
-
-
-
-
-
-          {/* LOGS MODULE */}
-          <PanelCard className="flex-1 p-6 relative">
-            <h3 className="text-[10px] font-bold tracking-[0.2em] uppercase mb-4 text-slate-500">Live Telemetry</h3>
-            <div className="space-y-4 font-mono text-[10px] opacity-70">
-              <div className="flex justify-between"><span className="text-blue-400"># ENV_SYNC</span><span>0.02ms</span></div>
-              <div className="flex justify-between text-slate-400"># SEC_ENCRYPT</div>
-              <div className="flex justify-between text-amber-500">! CACHE_OVERFLOW</div>
-              <div className="flex justify-between text-emerald-400"># PEER_CONNECTED</div>
-            </div>
-            {/* Gradient fade at bottom of logs */}
-            <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-[#0a0a0a] to-transparent" />
-          </PanelCard>
         </div>
 
-        {/* RIGHT AREA: BOTTOM CHARTS */}
-        <div className="flex-1 flex flex-col gap-6 ml-8 h-full justify-end">
-          
-          <div className="flex gap-6 h-72 pointer-events-auto">
-            
-            {/* MAIN AREA CHART (Network Intelligence) */}
-            <PanelCard className="flex-[2] p-8"  
-             onClick={() => {
-      // clear then re-set so clicking the same target repeatedly works
-      setFocusConfig(null); 
-      setTimeout(() => setFocusConfig(
-
-         {
-    part: 'building004',
-        offset: { x: 15, y: 5, z: 5 }
-  }
-      ), 50);
-    }}
-            
-            >
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h3 className="tex  t-xs font-bold uppercase tracking-widest text-slate-400">Network Intelligence</h3>
-                  <p className="text-2xl font-bold text-white mt-1">$32,430 <span className="text-xs text-blue-400 ml-2">+11.5%</span></p>
+        {/* ✅ LEFT SIDEBAR: Context-Aware */}
+        <div className="col-span-3 flex flex-col gap-4 z-10 pointer-events-auto">
+          {selectedObject ? (
+            /* COMPONENT DETAIL VIEW */
+            <GlassPanel title="Component Intelligence">
+              <button 
+                onClick={() => setSelectedObject(null)}
+                className="flex items-center gap-2 text-[10px] font-bold text-blue-400 mb-6 hover:text-white transition-colors"
+              >
+                <ArrowLeft size={14} /> RETURN TO SITE OVERVIEW
+              </button>
+              
+              {/* 🚩 RENDER THE DYNAMIC COMPONENT HERE */}
+              {ComponentToRender ? (
+                <ComponentToRender data={selectedObject} telemetry={componentData} />
+              ) : (
+                <div className="space-y-6">
+                  <div>
+                    <h2 className="text-2xl font-black text-white tracking-tighter uppercase">{selectedObject.name}</h2>
+                    <p className="text-xs text-blue-400 font-mono tracking-widest uppercase">{componentData.type}</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatMiniCard label="Primary Value" val={componentData.primaryMetric} icon={Zap} color="text-amber-400" />
+                    <StatMiniCard label="Efficiency" val={componentData.secondaryMetric} icon={Activity} color="text-emerald-400" />
+                  </div>
                 </div>
-                <div className="p-2 bg-white/5 rounded-lg border border-white/10">
-                   <TrendingUp size={16} className="text-blue-400" />
-                </div>
-              </div>
-              <ResponsiveContainer width="100%" height="60%">
-                <AreaChart data={performanceData}>
-                  <defs>
-                    <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <Area type="monotone" dataKey="val1" stroke="#3b82f6" strokeWidth={3} fill="url(#colorVal)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </PanelCard>
-
-            {/* NEON BAR CHART (Thermal) */}
-            <PanelCard className="flex-1 p-8"
-            
-              onClick={() => {
-      // clear then re-set so clicking the same target repeatedly works
-      setFocusConfig(null); 
-      setTimeout(() => setFocusConfig(
-
-         {  
-    part: 'building002',
-        offset: { x: -2, y: 5, z:  8  }
-  }
-      ), 50);
-    }}
-            >
-              <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-6">Thermal Gradient</h3>
-              <ResponsiveContainer width="100%" height="70%">
-                <BarChart data={barData}>
-                  <Bar dataKey="val" radius={[4, 4, 0, 0]}>
-                    {barData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#ef4444' : '#f87171'} fillOpacity={0.8} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </PanelCard>
-
-            {/* PIE CHART (Efficiency) */}
-            <PanelCard className="w-72 p-8 flex flex-col items-center justify-center">
-               <div className="relative w-32 h-32">
-                  <ResponsiveContainer>
+              )}
+            </GlassPanel>
+          ) : (
+            /* GENERAL SITE OVERVIEW */
+            <>
+              <GlassPanel title="Severity Distribution">
+                <div className="h-40 relative text-center">
+                  <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={[{v:72}, {v:28}]} innerRadius={40} outerRadius={55} dataKey="v" stroke="none">
-                        <Cell fill="#06b6d4" />
-                        <Cell fill="#1e293b" />
+                      <Pie data={SEVERITY_DATA} innerRadius={45} outerRadius={60} dataKey="value" paddingAngle={4}>
+                        {SEVERITY_DATA.map((e, i) => <Cell key={i} fill={e.color} stroke="rgba(255,255,255,0.05)" />)}
                       </Pie>
+                      <Tooltip contentStyle={{ backgroundColor: '#000', borderColor: '#333', fontSize: '10px' }} />
                     </PieChart>
                   </ResponsiveContainer>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-white tracking-tighter">72%</span>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-2xl font-black text-white">231</span>
+                    <span className="text-[8px] text-slate-500 tracking-[0.3em]">TOTAL</span>
                   </div>
-               </div>
-               <p className="text-[10px] uppercase tracking-[0.3em] text-slate-500 mt-4 font-bold">Efficiency</p>
-            </PanelCard>
-
-            {/* SECURITY CARD */}
-            <PanelCard className="w-64 p-8 bg-emerald-500/5 border-emerald-500/20 flex flex-col justify-between">
-               <div>
-                <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center border border-emerald-500/40 mb-4">
-                  <ShieldCheck className="text-emerald-400" size={24} />
                 </div>
-                <h3 className="text-sm font-bold text-white uppercase tracking-tight">Secure Node</h3>
-                <p className="text-[10px] text-emerald-500/60 mt-2 leading-relaxed font-medium italic">AES-256 Protocol Active & Stable</p>
-               </div>
-               <div className="pt-4 border-t border-emerald-500/10 flex justify-between items-center text-[10px] text-emerald-400 font-bold">
-                 <span>VERIFIED</span>
-                 <ArrowUpRight size={14} />
-               </div>
-            </PanelCard>
+              </GlassPanel>
 
-          </div>
+              <GlassPanel title="Priority Matrix" className="flex-1">
+                <table className="w-full text-[10px] font-mono">
+                  <thead>
+                    <tr className="text-slate-600 border-b border-white/5 uppercase italic">
+                      <th className="text-left py-2 font-normal">Zone</th>
+                      <th className="text-left py-2 font-normal">Now</th>
+                      <th className="text-left py-2 font-normal">Dev.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {SEVERITY_DATA.map((row, i) => (
+                      <tr key={i} className="border-b border-white/5">
+                        <td className="py-2">{row.name}</td>
+                        <td>{row.value}</td>
+                        <td className={i % 2 === 0 ? "text-red-500" : "text-emerald-500"}>
+                          {i % 2 === 0 ? `+${i+1} 🔺` : `-${i+2} 🔻`}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </GlassPanel>
+            </>
+          )}
         </div>
 
+        {/* ✅ RIGHT SIDEBAR */}
+        <div className="col-span-3 col-start-10 flex flex-col gap-4 z-10 pointer-events-auto">
+          {selectedObject ? (
+             <GlassPanel title="Component Live Feed" className="flex-1">
+                <div className="font-mono text-[9px] space-y-3">
+                   {componentData.logs.map((log, idx) => (
+                     <div key={idx} className="flex gap-2">
+                        <span className="text-blue-500/50">[{9 + idx}:45]</span>
+                        <span className="text-slate-300 uppercase italic tracking-wider">{log}</span>
+                     </div>
+                   ))}
+                </div>
+             </GlassPanel>
+          ) : (
+            <>
+              <GlassPanel title="Response SLA">
+                <div className="h-40">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={SLA_DATA} layout="vertical" margin={{ left: -20 }}>
+                      <XAxis type="number" hide />
+                      <YAxis dataKey="priority" type="category" stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                      <Bar dataKey="<1m" stackId="a" fill="#22c55e" radius={[2, 0, 0, 2]} />
+                      <Bar dataKey="1-5m" stackId="a" fill="#eab308" />
+                      <Bar dataKey=">5m" stackId="a" fill="#ef4444" radius={[0, 2, 2, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </GlassPanel>
+              <GlassPanel title="Health & Logistics" className="flex-1 space-y-4">
+                <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-xl flex justify-between items-center cursor-pointer">
+                  <div>
+                    <span className="text-[9px] text-red-400 font-bold uppercase tracking-widest">Offline Servers</span>
+                    <p className="text-2xl font-black text-white mt-1">03</p>
+                  </div>
+                  <ShieldAlert className="text-red-500 opacity-40" size={20} />
+                </div>
+              </GlassPanel>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* ================= BOTTOM SECTION (Always Visible) ================= */}
+      <div className="h-32 grid grid-cols-12 gap-4 z-20 pointer-events-auto">
+        <div className="col-span-5 grid grid-cols-3 gap-3">
+          {['PUE', 'WUE', 'Availability'].map((label, i) => (
+            <GlassPanel key={i} className="flex flex-col items-center justify-center">
+              <Activity size={16} className="text-emerald-400 mb-1" />
+              <p className="text-[9px] text-slate-500 font-bold uppercase">{label}</p>
+              <p className="text-lg font-black text-white">{i === 0 ? '1.52' : i === 1 ? '1.21' : '98.4%'}</p>
+            </GlassPanel>
+          ))}
+        </div>
+
+        <GlassPanel className="col-span-7 flex gap-4 overflow-hidden border-blue-500/20">
+          <div className="flex flex-col border-r border-white/10 pr-4 shrink-0 justify-center text-center">
+            <Terminal size={18} className="text-blue-400 mb-1" />
+            <span className="text-[8px] font-bold text-blue-500/70 uppercase">Global_Log</span>
+          </div>
+          <div className="flex-1 font-mono text-[10px] space-y-1 overflow-y-auto">
+            <p className="text-emerald-400 flex justify-between"><span>[09:44] SYS_SYNC_SUCCESS</span><span className="opacity-30">NODE_ALPHA</span></p>
+            <p className="text-red-400 flex justify-between font-bold animate-pulse"><span>[09:43] RACK_TEMP_HIGH</span><span>ZONE_C</span></p>
+          </div>
+        </GlassPanel>
       </div>
     </div>
   );

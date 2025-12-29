@@ -6,11 +6,13 @@ import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { useFocus } from '@/context/FocusContext';
+import { useSelection } from '@/context/SelectionContext';
 
 export default function Model({ highlightColor, controlsRef, onObjectSelect }) {
-  const { scene, error } = useGLTF('/models/data_center_hostdime.glb');
+  const { scene, error } = useGLTF('/models/lowpoly_shed.glb');
   const { camera } = useThree();
   const { focusConfig } = useFocus();
+  const { setSelectedObject } = useSelection();
   const previousHighlight = useRef(null);
 
   // 🔍 Add click handler to log object names
@@ -30,19 +32,27 @@ export default function Model({ highlightColor, controlsRef, onObjectSelect }) {
       console.log('Name:', mesh.name);
       console.log('Type:', mesh.type);
       console.log('Position:', mesh.position);
+      console.log('Position:', mesh.position);
+      
+      const objectData = {
+        name: mesh.name,
+        type: mesh.type,
+        position: e.point,
+        material: mesh.material?.type || 'Unknown',
+        color: mesh.material?.color
+          ? `#${mesh.material.color.getHexString()}`
+          : null,
+        vertices: mesh.geometry?.attributes?.position?.count || 0,
+      };
+
+      setSelectedObject(objectData);
+
       if (onObjectSelect) {
-  onObjectSelect({
-    name: mesh.name,
-    type: mesh.type,
-    position: e.point,
-    material: mesh.material?.type || 'Unknown',
-    color: mesh.material?.color
-      ? `#${mesh.material.color.getHexString()}`
-      : null,
-    vertices: mesh.geometry?.attributes?.position?.count || 0,
-    hierarchy
-  });
-}
+        onObjectSelect({
+          ...objectData,
+          hierarchy
+        });
+      }
       // Show hierarchy
       const hierarchy = [];
       let current = mesh;
